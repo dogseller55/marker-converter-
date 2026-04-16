@@ -452,7 +452,8 @@
         if (cols.length < 7) continue;
         const ts = cols[6]; // G column = Recording Timestamp
         if (!ts || ts === 'n/a' || !ts.includes(':')) continue;
-        parsedMarkers.push(ts);
+        const comment = (cols[10] || '').trim(); // K column = Comment
+        parsedMarkers.push({ ts, comment });
       }
 
       if (parsedMarkers.length === 0) {
@@ -466,6 +467,13 @@
       document.getElementById('btnFCP').disabled = false;
     };
     reader.readAsText(file, 'UTF-8');
+  }
+
+  // 코멘트 → 마커 이름 변환
+  function markerName(item, i, prefix) {
+    const c = item.comment;
+    if (c && c !== 'n/a' && c !== '') return c;
+    return `${prefix} ${String(i+1).padStart(2,'0')}`;
   }
 
   // ── Timecode helpers ─────────────────────────────────────────
@@ -538,14 +546,15 @@
     const tbody = document.getElementById('previewBody');
     tbody.innerHTML = '';
 
-    parsedMarkers.forEach((ts, i) => {
-      const sec = tsToSeconds(ts);
+    parsedMarkers.forEach((item, i) => {
+      const sec = tsToSeconds(item.ts);
       const tc = secondsToDisplay(sec, fps);
+      const name = markerName(item, i, prefix);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${i+1}</td>
-        <td>${prefix} ${String(i+1).padStart(2,'0')}</td>
-        <td>${ts}</td>
+        <td>${name}</td>
+        <td>${item.ts}</td>
         <td class="tc">${tc}</td>
       `;
       tbody.appendChild(tr);
@@ -559,15 +568,15 @@
     const df = parseFloat(fps) === 29.97;
 
     // Build marker XML
-    const markerLines = parsedMarkers.map((ts, i) => {
-      const sec = tsToSeconds(ts);
+    const markerLines = parsedMarkers.map((item, i) => {
+      const sec = tsToSeconds(item.ts);
       const t = secondsToFCPTime(sec, fps);
-      const name = `${prefix} ${String(i+1).padStart(2,'0')}`;
+      const name = markerName(item, i, prefix);
       return `                    <marker start="${t}" duration="1001/30000s" value="${name}" completed="0"/>`;
     }).join('\n');
 
     // Gap duration: last marker + 30s buffer
-    const lastSec = tsToSeconds(parsedMarkers[parsedMarkers.length - 1]);
+    const lastSec = tsToSeconds(parsedMarkers[parsedMarkers.length - 1].ts);
     const gapSec = lastSec + 30;
     const gapDur = secondsToFCPTime(gapSec, fps);
 
@@ -608,7 +617,7 @@ ${markerLines}
     a.click();
 
     setStep(3);
-    showStatus('ok', `FCPXML 다운로드 완료 — 마커 ${parsedMarkers.length}개 ✓`);
+    showStatus('ok', `FCPXML 다운로드 완료 — 마커 ${parsedMarkers.length}개 ✓ (코멘트 이름 적용)`);
   }
 
   // ── Helpers ──────────────────────────────────────────────────
