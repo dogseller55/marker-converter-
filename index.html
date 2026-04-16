@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBS → FCP 마커 변환기</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --border: #2a2a2a;
+    --accent: #00e5a0;
+    --accent-dim: #00e5a020;
+    --text: #e8e8e8;
+    --text-dim: #666;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 56px;
+  }
+
+  .label-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--text);
+  }
+
+  h1 span { color: var(--accent); }
+
+  .sub {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 32px;
+    margin-bottom: 16px;
+  }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Drop zone */
+  .dropzone {
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .dropzone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-family: var(--mono);
+    font-size: 28px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .drop-text {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .drop-text strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .file-name {
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    display: none;
+  }
+
+  /* Settings */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .field label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .field select, .field input[type=text] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .field select:focus, .field input:focus {
+    border-color: var(--accent);
+  }
+
+  /* Preview table */
+  .preview-wrap {
+    overflow-x: auto;
+    margin-top: 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #1e1e1e;
+    color: var(--text);
+  }
+
+  td.tc { color: var(--accent); }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1a1a1a; }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  /* Button */
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Status */
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 14px;
+    border-radius: 2px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  .status.ok {
+    background: #00e5a010;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    display: block;
+  }
+
+  .status.err {
+    background: #ff444410;
+    border: 1px solid #ff4444;
+    color: #ff6666;
+    display: block;
+  }
+
+  /* Flow diagram */
+  .flow {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 40px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .flow-step {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .flow-step.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .flow-arrow {
+    padding: 0 8px;
+    color: var(--border);
+  }
+
+  footer {
+    margin-top: 60px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #333;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="label-tag">// Yeeun Church · Private Tool</div>
+  <h1>OBS Marker<br>→ <span>FCP</span> XML 변환기</h1>
+  <p class="sub">OBS 녹화 중 찍은 마커 CSV 파일을 Final Cut Pro용 FCPXML로 변환합니다.</p>
+</header>
+
+<div class="flow">
+  <div class="flow-step active" id="step1">01 CSV 업로드</div>
+  <div class="flow-arrow">──▶</div>
+  <div class="flow-step" id="step2">02 타임코드 확인</div>
+  <div class="flow-arrow">──▶</div>
+  <div class="flow-step" id="step3">03 FCPXML 다운로드</div>
+</div>
+
+<!-- Upload -->
+<div class="card">
+  <div class="card-label">01 · CSV 파일 업로드</div>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="csvFile" accept=".csv">
+    <div class="drop-icon">↓</div>
+    <div class="drop-text"><strong>클릭하거나 파일을 드래그</strong>하세요<br>obs-local-stream-marker.csv</div>
+    <div class="file-name" id="fileName"></div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+  <div class="card-label">02 · 변환 설정</div>
+  <div class="settings-grid">
+    <div class="field">
+      <label>프레임레이트 (fps)</label>
+      <select id="fps">
+        <option value="25">25 fps</option>
+        <option value="29.97" selected>29.97 fps (드롭프레임)</option>
+        <option value="30">30 fps</option>
+        <option value="23.976">23.976 fps</option>
+        <option value="60">60 fps</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>마커 이름 접두어</label>
+      <input type="text" id="prefix" value="성구자막" placeholder="성구자막">
+    </div>
+  </div>
+</div>
+
+<!-- Preview -->
+<div class="card">
+  <div class="card-label">03 · 타임코드 미리보기</div>
+  <div class="preview-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>마커 이름</th>
+          <th>원본 타임스탬프</th>
+          <th>FCPXML 타임코드</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody">
+        <tr><td colspan="4" class="empty-state">CSV 파일을 업로드하면 여기에 표시됩니다</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Download -->
+<div class="card">
+  <div class="card-label">04 · 내보내기</div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btnFCP" disabled onclick="downloadFCPXML()">FCPXML 다운로드 →</button>
+    <button class="btn btn-ghost" onclick="reset()">초기화</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<footer>// 예은교회 내부 전용 도구 · made with Claude</footer>
+
+<script>
+  let parsedMarkers = [];
+
+  // ── Drag & Drop ──────────────────────────────────────────────
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+
+  document.getElementById('csvFile').addEventListener('change', e => {
+    if (e.target.files[0]) processFile(e.target.files[0]);
+  });
+
+  document.getElementById('fps').addEventListener('change', () => {
+    if (parsedMarkers.length) renderPreview();
+  });
+
+  document.getElementById('prefix').addEventListener('input', () => {
+    if (parsedMarkers.length) renderPreview();
+  });
+
+  // ── Parse CSV ────────────────────────────────────────────────
+  function processFile(file) {
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileName').style.display = 'block';
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      parsedMarkers = [];
+
+      for (const line of lines) {
+        const cols = line.split(',').map(c => c.trim());
+        if (cols.length < 7) continue;
+        const ts = cols[6]; // G column = Recording Timestamp
+        if (!ts || ts === 'n/a' || !ts.includes(':')) continue;
+        parsedMarkers.push(ts);
+      }
+
+      if (parsedMarkers.length === 0) {
+        showStatus('err', '유효한 타임스탬프를 찾지 못했습니다. OBS Local Stream Marker CSV 파일인지 확인하세요.');
+        return;
+      }
+
+      renderPreview();
+      setStep(2);
+      showStatus('ok', `타임스탬프 ${parsedMarkers.length}개 인식됨 ✓`);
+      document.getElementById('btnFCP').disabled = false;
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // ── Timecode helpers ─────────────────────────────────────────
+  function tsToSeconds(ts) {
+    const parts = ts.split(':');
+    if (parts.length === 3) {
+      return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+    }
+    return 0;
+  }
+
+  function secondsToFCPTime(sec, fps) {
+    const fps_f = parseFloat(fps);
+    if (fps_f === 29.97) {
+      // Drop-frame: frames = sec * 30000/1001
+      const frames = Math.round(sec * 30000 / 1001);
+      const num = frames * 1001;
+      const den = 30000;
+      const g = gcd(num, den);
+      return `${num/g}/${den/g}s`;
+    } else {
+      const fpsInt = Math.round(fps_f);
+      const frames = Math.round(sec * fps_f);
+      const num = frames;
+      const den = fpsInt;
+      const g = gcd(num, den);
+      return num === 0 ? '0s' : `${num/g}/${den/g}s`;
+    }
+  }
+
+  function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+  function secondsToDisplay(sec, fps) {
+    const fps_f = parseFloat(fps);
+    const df = fps_f === 29.97 || fps_f === 59.94;
+    const nomFps = df ? (fps_f < 30 ? 30 : 60) : Math.round(fps_f);
+    let totalFrames;
+    if (df && nomFps === 30) {
+      totalFrames = Math.round(sec * 30000 / 1001);
+      const dropFrames = 2;
+      const framesPerHour = 107892;
+      const framesPer10Min = 17982;
+      const framesPerMin = 1800 - dropFrames;
+      const d = Math.floor(totalFrames / framesPerHour);
+      let rem = totalFrames % framesPerHour;
+      const tens = Math.floor(rem / framesPer10Min);
+      rem = rem % framesPer10Min;
+      const units = Math.max(0, Math.floor((rem - dropFrames) / framesPerMin));
+      rem = rem - (units === 0 ? 0 : dropFrames) - units * framesPerMin;
+      const ff = rem % nomFps;
+      const ss = Math.floor(rem / nomFps);
+      const p = n => String(n).padStart(2,'0');
+      return `${p(d)};${p(tens*10+units)};${p(ss)};${p(ff)}`;
+    } else {
+      totalFrames = Math.round(sec * fps_f);
+      const ff = totalFrames % nomFps;
+      const ss = Math.floor(totalFrames / nomFps) % 60;
+      const mm = Math.floor(totalFrames / nomFps / 60) % 60;
+      const hh = Math.floor(totalFrames / nomFps / 3600);
+      const p = n => String(n).padStart(2,'0');
+      const sep = df ? ';' : ':';
+      return `${p(hh)}${sep}${p(mm)}${sep}${p(ss)}${sep}${p(ff)}`;
+    }
+  }
+
+  // ── Render preview ───────────────────────────────────────────
+  function renderPreview() {
+    const fps = document.getElementById('fps').value;
+    const prefix = document.getElementById('prefix').value || '마커';
+    const tbody = document.getElementById('previewBody');
+    tbody.innerHTML = '';
+
+    parsedMarkers.forEach((ts, i) => {
+      const sec = tsToSeconds(ts);
+      const tc = secondsToDisplay(sec, fps);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${prefix} ${String(i+1).padStart(2,'0')}</td>
+        <td>${ts}</td>
+        <td class="tc">${tc}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Generate FCPXML ──────────────────────────────────────────
+  function downloadFCPXML() {
+    const fps = document.getElementById('fps').value;
+    const prefix = document.getElementById('prefix').value || '마커';
+    const df = parseFloat(fps) === 29.97;
+
+    // Build marker XML
+    const markerLines = parsedMarkers.map((ts, i) => {
+      const sec = tsToSeconds(ts);
+      const t = secondsToFCPTime(sec, fps);
+      const name = `${prefix} ${String(i+1).padStart(2,'0')}`;
+      return `                    <marker start="${t}" duration="1001/30000s" value="${name}" completed="0"/>`;
+    }).join('\n');
+
+    // Gap duration: last marker + 30s buffer
+    const lastSec = tsToSeconds(parsedMarkers[parsedMarkers.length - 1]);
+    const gapSec = lastSec + 30;
+    const gapDur = secondsToFCPTime(gapSec, fps);
+
+    const fmtName = df ? 'FFVideoFormat1080p2997' : `FFVideoFormat1080p${Math.round(parseFloat(fps))}`;
+    const frameDur = df ? '1001/30000s' : `1/${Math.round(parseFloat(fps))}s`;
+    const tcFormat = df ? 'DF' : 'NDF';
+    const uid = crypto.randomUUID().toUpperCase();
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+    <resources>
+        <format id="r1" name="${fmtName}" frameDuration="${frameDur}"
+                fieldOrder="progressive" width="1920" height="1080"
+                colorSpace="1-1-1 (Rec. 709)"/>
+    </resources>
+    <library>
+        <event name="성구자막 타이밍">
+            <project name="${prefix} 마커" uid="${uid}">
+                <sequence format="r1" duration="${gapDur}"
+                          tcStart="0s" tcFormat="${tcFormat}"
+                          audioLayout="stereo" audioRate="48k">
+                    <spine>
+                        <gap name="마커 갭" offset="0s" duration="${gapDur}" start="0s">
+${markerLines}
+                        </gap>
+                    </spine>
+                </sequence>
+            </project>
+        </event>
+    </library>
+</fcpxml>`;
+
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${prefix}_마커_${new Date().toISOString().slice(0,10)}.fcpxml`;
+    a.click();
+
+    setStep(3);
+    showStatus('ok', `FCPXML 다운로드 완료 — 마커 ${parsedMarkers.length}개 ✓`);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function showStatus(type, msg) {
+    const el = document.getElementById('status');
+    el.className = `status ${type}`;
+    el.textContent = msg;
+  }
+
+  function setStep(n) {
+    ['step1','step2','step3'].forEach((id, i) => {
+      document.getElementById(id).classList.toggle('active', i < n);
+    });
+  }
+
+  function reset() {
+    parsedMarkers = [];
+    document.getElementById('csvFile').value = '';
+    document.getElementById('fileName').style.display = 'none';
+    document.getElementById('previewBody').innerHTML =
+      '<tr><td colspan="4" class="empty-state">CSV 파일을 업로드하면 여기에 표시됩니다</td></tr>';
+    document.getElementById('btnFCP').disabled = true;
+    document.getElementById('status').className = 'status';
+    setStep(1);
+  }
+</script>
+</body>
+</html>
